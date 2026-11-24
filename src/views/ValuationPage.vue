@@ -71,6 +71,51 @@ const wizardSteps = computed(() => [
 ])
 const stepIndex = computed(() => wizardSteps.value.findIndex((s) => s.key === wizardStep.value))
 
+// Each wizard step has its own URL hash (#1, #2, #3), as on Neuron, so the browser's back and forward
+// buttons move between steps. The cockpit preview replaces instead, so it never fills the cockpit's history.
+const stepHash = (key) => `#${wizardSteps.value.findIndex((s) => s.key === key) + 1}`
+const keyFromHash = (hash) => wizardSteps.value[Number(String(hash).replace('#', '')) - 1]?.key || null
+let replaceNext = true // the first hash (page load, restored step) replaces the entry it lands on
+
+// Move the wizard to a step; false when that step can't be shown yet (the details step needs an address).
+function applyStep(key) {
+  if (key === 'contact' && !address.value) return false
+  if (key === 'type') typeChosen.value = false
+  else typeChosen.value = true
+  step.value = key === 'type' ? 'postcode' : key
+  return true
+}
+
+watch([wizardStep, () => state.value, () => props.valuationId], () => {
+  if (state.value !== 'ready' || step.value === 'result' || props.valuationId) return
+  const hash = stepHash(wizardStep.value)
+  if (route.hash === hash) return
+  const to = { path: route.path, query: route.query, hash }
+  if (replaceNext || preview) router.replace(to)
+  else router.push(to)
+  replaceNext = false
+}, { flush: 'post' })
+
+// Browser back / forward (or a typed hash).
+watch(() => route.hash, (hash) => {
+  if (state.value !== 'ready' || step.value === 'result' || props.valuationId) return
+  const key = keyFromHash(hash)
+  if (key === wizardStep.value) return
+  if (!key || !applyStep(key)) {
+    replaceNext = true // put the hash back to the step actually shown
+    router.replace({ path: route.path, query: route.query, hash: stepHash(wizardStep.value) })
+  }
+})
+
+// The Back button: the browser's own back when the previous entry is the step before, so the history and
+// the button never disagree; otherwise (a refresh, a link) just show the step before.
+function stepBack() {
+  const prev = wizardSteps.value[stepIndex.value - 1]?.key
+  if (!prev) return
+  if (window.history.state?.back?.endsWith(stepHash(prev))) router.back()
+  else { replaceNext = true; applyStep(prev) }
+}
+
 const typeLabel = computed(() => (valuationType.value === 'lettings' ? 'Lettings valuation' : 'Selling valuation'))
 
 function useConfig(next) {
@@ -93,6 +138,9 @@ onMounted(async () => {
     if (!preview || e.status !== 404) state.value = 'missing'
   }
   if (!props.valuationId && remember) restoreWizard()
+  // A step in the URL wins over the remembered one (e.g. a refresh on #2 after going back from #3).
+  const fromHash = !props.valuationId && keyFromHash(route.hash)
+  if (fromHash) applyStep(fromHash)
 })
 
 // A refresh brings the homeowner back to the step they were on, as on Neuron.
@@ -113,7 +161,7 @@ watch([step, valuationType, typeChosen, address], () => {
 // The result page: opened right after the contact step, or straight from its URL (refresh, shared link).
 watch(() => props.valuationId, (id) => {
   if (id && lead.value?.valuation_id !== id) loadReport(id)
-  else if (!id && step.value === 'result') restart() // browser back from a result
+  else if (!id && step.value === 'result') goBack() // browser back from a result: same as its Back button
 }, { immediate: true })
 
 async function loadReport(id) {
@@ -195,6 +243,7 @@ let lastAddress = null
 watch(address, (a) => { if (a) lastAddress = a })
 
 function restart() {
+  replaceNext = true
   backToAddress.value = false
   step.value = 'postcode'
   typeChosen.value = false
@@ -258,6 +307,9 @@ function restart() {
       <p class="hero__sub">{{ content.subtext || "Find out what your home is worth in today's market." }}</p>
 
       <div ref="stepRoot" class="wizard-card">
+        <button v-if="stepIndex > 0" type="button" class="step-back" @click="stepBack">
+          <Icon name="arrow-left" :size="16" :stroke="2.25" /> Back
+        </button>
         <ol class="steps" aria-label="Progress">
           <li
             v-for="(s, i) in wizardSteps"
@@ -274,7 +326,7 @@ function restart() {
           <div v-else-if="wizardStep === 'postcode'" key="postcode">
             <div v-if="bothServices" class="type-summary">
               <span>{{ typeLabel }}</span>
-              <button type="button" class="link-btn" @click="typeChosen = false">Change</button>
+              <button type="button" class="link-btn" @click="stepBack">Change</button>
             </div>
             <StepPostcode
               :company="slug"
@@ -294,7 +346,7 @@ function restart() {
             :valuation-type="valuationType"
             :privacy-policy-url="content.privacyPolicyUrl"
             @created="showResult"
-            @back="step = 'postcode'"
+            @back="stepBack"
           />
         </Transition>
       </div>

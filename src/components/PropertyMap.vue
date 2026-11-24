@@ -3,7 +3,7 @@
 // and removes itself if Google Maps can't load, so the page never shows an empty box.
 //   variant 'card'  framed, with the place written under the map (property report)
 //   variant 'fill'  fills its container, with the place on a chip over the map (personalised valuation)
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { mapsEnabled, mapsRejected, loadGoogleMaps, googleMapsLink } from '../lib/googleMaps'
 
@@ -62,11 +62,16 @@ function logoPin(maps, position, logo, title) {
   return new LogoPin()
 }
 
-onMounted(async () => {
-  if (!show.value) return
+// The position can arrive after the component mounts (property details load later), so the map is
+// drawn as soon as there is something to show.
+watch(show, (visible) => { if (visible && !map) draw() }, { flush: 'post' })
+onMounted(() => { if (show.value) draw() })
+
+async function draw() {
+  map = {} // drawing: don't start twice
   try {
     const maps = await loadGoogleMaps()
-    if (!canvas.value) return
+    if (!canvas.value) { map = null; return }
     map = new maps.Map(canvas.value, {
       center: point.value,
       zoom: 16,
@@ -82,7 +87,7 @@ onMounted(async () => {
     console.warn(e.message)
     failed.value = true
   }
-})
+}
 onBeforeUnmount(() => { map = null })
 </script>
 

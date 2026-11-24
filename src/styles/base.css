@@ -76,6 +76,9 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .wizard-card { width: 100%; background: #FFFFFF; color: var(--text); border-radius: var(--radius); box-shadow: var(--card-shadow); padding: clamp(20px, 3.5vw, 28px); }
 
 /* wizard step indicator */
+.step-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: -8px 0 8px -10px; padding: 0 10px; background: none; border: 0; border-radius: var(--radius); color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.step-back:hover { color: var(--ink); background: var(--surface-2, #F3F4F6); }
+.step-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .steps { display: flex; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; counter-reset: step; }
 .steps li { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .steps li::before { content: ''; height: 4px; border-radius: 2px; background: var(--border); transition: background-color .3s ease; }

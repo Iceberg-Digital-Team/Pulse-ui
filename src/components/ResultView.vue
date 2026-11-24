@@ -49,6 +49,15 @@ const figure = computed(() => (selected.value?.kind === 'personalised' ? selecte
 const hasFigure = computed(() => figure.value.estimate > 0)
 const hasRange = computed(() => !lettings.value && figure.value.min > 0 && figure.value.max > figure.value.min)
 
+// Where the home is, for the map. Address search results carry no position (0,0), so right after the
+// contact step it comes from the property details, which load a moment later.
+const validPoint = (c) => {
+  const lat = Number(c?.lat)
+  const lng = Number(c?.lng)
+  return Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng) ? { lat, lng } : null
+}
+const coordinates = computed(() => validPoint(props.address?.coordinates) || validPoint(props.property?.address?.coordinates))
+
 const specs = computed(() => props.property?.specs || {})
 // With the personalised estimate chosen, the facts follow the homeowner's answers.
 const confirmedBedrooms = computed(() => (selected.value?.kind === 'personalised' ? selected.value.subject?.bedrooms : null))
@@ -253,7 +262,7 @@ function confirmChoice(kind) {
               <p v-if="pending && selected" class="entry__status">Your previous selection stays in this report until you confirm a new one.</p>
             </div>
 
-            <PropertyMap class="report__map" :logo="markerLogo" :coordinates="address.coordinates" :place="address.postcode" :address="address.full" />
+            <PropertyMap class="report__map" :logo="markerLogo" :coordinates="coordinates" :place="address.postcode" :address="address.full" />
           </section>
 
           <!-- how personalising works, then where the homeowner is with it -->
@@ -324,7 +333,7 @@ function confirmChoice(kind) {
       :personalisation="personalisation"
       :address="address.full"
       :tags="tags"
-      :coordinates="address.coordinates"
+      :coordinates="coordinates"
       :postcode="address.postcode"
       :company-name="companyName"
       :marker-logo="markerLogo"
